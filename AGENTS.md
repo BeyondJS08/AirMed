@@ -2,6 +2,7 @@
 
 ## Context
 Project: AirMed
+
 Description: AirMed is a comprehensive, intelligent appointment scheduling system for the healthcare sector, designed for professionals in medicine, dentistry, psychology, nutrition, and other related fields. This system is designed to efficiently manage your availability and receive appointments from your patients.
 
 In this project, is contemplated:
