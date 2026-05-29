@@ -18,4 +18,4 @@ Este sistema esta diseñado para gestionar su disponibilidad y recibir citas de 
 - Mobile: React Native/Expo
 - APIS: Google Calendar, OAuth 2.0, Telegram Bot API y WhatsApp Business API
 - LLM on-premise: gemma-4-E4B
-- Containerized: Podman
+- Containerization: Podman
