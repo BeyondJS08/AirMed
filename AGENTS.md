@@ -54,7 +54,48 @@ Stage 2: Development and Integration of Main Modules
 - Frontend: React/Next.js
 - Backend: FastAPI
 - Database: PostgreSQL/Supabase
+- ORM: SQLAlchemy
 - Mobile: React Native/Expo
 - APIS: Google Calendar, OAuth 2.0, Telegram Bot API y WhatsApp Business API
-- LLM on-premise: gemma-4-E4B
-- Containerized: Podman
+- LLM on-premise: gemma-4-E2B
+- Infrastructure: Docker/Podman, GitHub Actions
+
+## Project Structure
+```
+AirMed/
+├── backend-airmed/       # FastAPI REST API
+│   ├── app/              # Application code
+│   │   ├── api/v1/       # API routers
+│   │   ├── core/         # Config, security
+│   │   ├── db/           # SQLAlchemy base & session
+│   │   ├── models/       # Database models (User, Appointment, Availability)
+│   │   ├── schemas/      # Pydantic schemas
+│   │   └── services/     # Business logic
+│   ├── alembic/          # Database migrations
+│   ├── tests/            # Pytest suite
+│   ├── requirements.txt
+│   └── Dockerfile
+├── frontend-airmed/      # Next.js web app
+│   ├── app/              # Next.js App Router
+│   ├── components/       # React components (shadcn/ui)
+│   ├── hooks/            # Custom hooks
+│   ├── lib/              # Utilities & API client
+│   ├── services/         # Domain services (auth, appointments)
+│   ├── types/            # TypeScript types
+│   ├── features/         # Feature modules
+│   ├── stores/           # State stores
+│   └── tests/            # Test suite
+├── mobile-airmed/        # React Native (Expo) app
+│   ├── app/              # File-based routing
+│   ├── components/       # React components
+│   ├── constants/        # App constants
+│   ├── hooks/            # Custom hooks
+│   ├── api/              # API client
+│   ├── services/         # Domain services
+│   ├── types/            # TypeScript types
+│   ├── features/         # Feature modules
+│   └── tests/            # Test suite
+├── docs/                 # Architecture & design docs
+├── docker-compose.yml    # Local orchestration
+└── .github/workflows/    # CI/CD pipelines
+```
