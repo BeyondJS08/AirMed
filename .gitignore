@@ -1,5 +1,8 @@
 # Environment
 .env
+.env.example
+.docs
+.github
 
 # OS
 .DS_Store
