@@ -71,4 +71,3 @@ AirMed/
 - API's: Google Calendar, OAuth 2.0, Telegram Bot API y WhatsApp Business API
 - LLM on-premise: gemma-4-E4B
 - Containerization: Podman
->>>>>>> a73d329d5c47d511129434ed8111564c94e5b02a
