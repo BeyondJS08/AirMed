@@ -2,6 +2,7 @@
 
 ## Context
 Project: AirMed
+
 Description: AirMed is a comprehensive, intelligent appointment scheduling system for the healthcare sector, designed for professionals in medicine, dentistry, psychology, nutrition, and other related fields. This system is designed to efficiently manage your availability and receive appointments from your patients.
 
 In this project, is contemplated:
@@ -57,6 +58,7 @@ Stage 2: Development and Integration of Main Modules
 - ORM: SQLAlchemy
 - Mobile: React Native/Expo
 - APIS: Google Calendar, OAuth 2.0, Telegram Bot API y WhatsApp Business API
+<<<<<<< HEAD
 - LLM on-premise: gemma-4-E2B
 - Infrastructure: Docker/Podman, GitHub Actions
 
@@ -99,3 +101,7 @@ AirMed/
 ├── docker-compose.yml    # Local orchestration
 └── .github/workflows/    # CI/CD pipelines
 ```
+=======
+- LLM on-premise: gemma-4-E4B
+- Containerization: Podman
+>>>>>>> a73d329d5c47d511129434ed8111564c94e5b02a
