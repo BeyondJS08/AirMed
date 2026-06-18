@@ -2,16 +2,12 @@
 AirMed (Citas Inteligentes)
 Es un sistema integral de agendamiento inteligente de citas para el área de la salud, dirigido para profesionales de medicina, odontología, psicología, nutriólogos, entre otros.
 Este sistema está diseñado para gestionar su disponibilidad y recibir citas de sus pacientes de forma eficiente.
-
 ### AirMed proporciona a los usuarios:
   - Web App
   - Mobile App
   - Integración con Google Calendar
   - Integración con servicios de mensajería (WhatsApp y Telegram) sumado con IA para asistir a usuarios con poca experiencia tecnológica
-
 ---
-
-<<<<<<< HEAD
 ### Estructura del Proyecto
 ```
 AirMed/
@@ -52,7 +48,6 @@ AirMed/
 ├── docker-compose.yml    # Local orchestration
 └── README.md
 ```
-
 ### Tech Stack
 - **Frontend**: React/Next.js + Tailwind CSS + shadcn/ui
 - **Backend**: FastAPI + SQLAlchemy + Alembic
@@ -62,7 +57,6 @@ AirMed/
 - **LLM on-premise**: Gemma-4-E2B
 - **Containerized**: Docker / Podman
 - **CI/CD**: GitHub Actions
-=======
 ### Estructura del Proyecto:
 - Frontend: React/Next.js
 - Backend: FastAPI
