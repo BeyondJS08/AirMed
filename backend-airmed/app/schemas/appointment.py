@@ -1,5 +1,5 @@
-from datetime import datetime
-from pydantic import BaseModel, ConfigDict
+from datetime import datetime, timezone
+from pydantic import BaseModel, ConfigDict, model_validator
 
 
 class AppointmentBase(BaseModel):
@@ -12,15 +12,29 @@ class AppointmentBase(BaseModel):
 
 class AppointmentCreate(AppointmentBase):
     professional_id: int
-    patient_id: int
+
+    @model_validator(mode="after")
+    def end_must_be_after_start(self):
+        if self.end_time <= self.start_time:
+            raise ValueError("end_time must be after start_time")
+        return self
+
+    @model_validator(mode="after")
+    def must_be_in_future(self):
+        if self.start_time <= datetime.now(timezone.utc):
+            raise ValueError("start_time must be in the future")
+        return self
 
 
-class AppointmentUpdate(AppointmentBase):
+class AppointmentUpdate(BaseModel):
     status: str | None = None
+    notes: str | None = None
 
 
 class AppointmentOut(AppointmentBase):
     id: int
+    professional_id: int
+    patient_id: int
     status: str
     google_event_id: str | None = None
 
