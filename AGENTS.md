@@ -29,13 +29,13 @@ Stage 2: Development and Integration of Main Modules
 - Integration of the on-premise Local Language Model (LLM) for interpreting natural language messages sent via WhatsApp/Telegram.
 - Development of the WhatsApp bot (WhatsApp Business API) and Telegram bot: message reception, availability analysis, appointment confirmation, and event creation in Google Calendar.
 
-3: Notifications, Reminders, and Automation
+Stage 3: Notifications, Reminders, and Automation
 - Implementation of the automatic reminder system: sending confirmation and reminder messages via WhatsApp, Telegram, and email to both the patient and the professional.
 - Proactive reminder flow configuration for professionals: the system notifies doctors/dentists/psychologists of their upcoming appointments via messaging, eliminating the need for constant platform checks.
 - Support for virtual appointments (video call link included in the event) and in-person appointments (office address included in the Google Calendar event).
 - Administration panel for configuring availability, services offered, and handling exceptions (cancellations, rescheduling).
 
-4: Testing, Optimization, and Deployment
+Stage 4: Testing, Optimization, and Deployment
 - Functional testing of the entire flow: from appointment request (web, mobile, or messaging) to confirmation and registration in Google Calendar.
 - Usability testing with users with limited technological experience using WhatsApp/Telegram.
 - Security testing: OAuth authentication validation, protection of health data, and access control.
@@ -100,5 +100,6 @@ AirMed/
 ├── docker-compose.yml    # Local orchestration
 └── .github/workflows/    # CI/CD pipelines
 ```
+
 
 
