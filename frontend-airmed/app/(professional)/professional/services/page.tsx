@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { toast } from "sonner"
 
 export default function ServicesPage() {
   const { data: services, isLoading } = useServices()
@@ -52,8 +53,10 @@ export default function ServicesPage() {
       setDuration("30")
       setPrice("")
       setDescription("")
+      toast.success("Service added")
     } catch {
       setError("Failed to create service")
+      toast.error("Failed to add service")
     }
   }
 
@@ -162,7 +165,13 @@ export default function ServicesPage() {
                       <Button
                         size="sm"
                         variant="destructive"
-                        onClick={() => deleteMutation.mutate(svc.id)}
+                        onClick={() => {
+                          toast.promise(deleteMutation.mutateAsync(svc.id), {
+                            loading: "Removing...",
+                            success: "Service removed",
+                            error: "Failed to remove service",
+                          })
+                        }}
                         disabled={deleteMutation.isPending}
                       >
                         Remove

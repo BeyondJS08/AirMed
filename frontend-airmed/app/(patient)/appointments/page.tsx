@@ -3,8 +3,31 @@
 import { useAppointments, useCancelAppointment } from "@/hooks/use-appointments"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
 import { StatusBadge, formatDate } from "@/components/status-badge"
 import Link from "next/link"
+import { toast } from "sonner"
+
+function AppointmentSkeleton() {
+  return (
+    <div className="space-y-3">
+      {[1, 2].map((i) => (
+        <Card key={i}>
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <Skeleton className="h-5 w-40" />
+              <Skeleton className="h-5 w-20" />
+            </div>
+          </CardHeader>
+          <CardContent>
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="mt-2 h-4 w-24" />
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  )
+}
 
 export default function AppointmentsPage() {
   const { data: appointments, isLoading } = useAppointments()
@@ -18,11 +41,11 @@ export default function AppointmentsPage() {
   )
 
   async function handleCancel(id: number) {
-    if (confirm("Cancel this appointment?")) {
-      try {
-        await cancelMutation.mutateAsync(id)
-      } catch {}
-    }
+    toast.promise(cancelMutation.mutateAsync(id), {
+      loading: "Cancelling appointment...",
+      success: "Appointment cancelled",
+      error: "Failed to cancel appointment",
+    })
   }
 
   return (
@@ -40,7 +63,7 @@ export default function AppointmentsPage() {
       </div>
 
       {isLoading ? (
-        <p className="text-sm text-muted-foreground">Loading...</p>
+        <AppointmentSkeleton />
       ) : !appointments?.length ? (
         <Card>
           <CardContent className="p-8 text-center text-muted-foreground">

@@ -25,6 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { toast } from "sonner"
 
 const DAY_LABELS = [
   "Monday",
@@ -65,8 +66,10 @@ export default function AvailabilityPage() {
       setDayOfWeek("")
       setStartTime("09:00")
       setEndTime("17:00")
+      toast.success("Availability window added")
     } catch {
       setError("Failed to create availability")
+      toast.error("Failed to add availability window")
     }
   }
 
@@ -174,7 +177,13 @@ export default function AvailabilityPage() {
                       <Button
                         size="sm"
                         variant="destructive"
-                        onClick={() => deleteMutation.mutate(av.id)}
+                        onClick={() => {
+                          toast.promise(deleteMutation.mutateAsync(av.id), {
+                            loading: "Removing...",
+                            success: "Availability window removed",
+                            error: "Failed to remove window",
+                          })
+                        }}
                         disabled={deleteMutation.isPending}
                       >
                         Remove

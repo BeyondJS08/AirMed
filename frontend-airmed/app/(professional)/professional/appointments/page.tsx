@@ -12,7 +12,25 @@ import {
 } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { Skeleton } from "@/components/ui/skeleton"
 import { StatusBadge, formatDate } from "@/components/status-badge"
+import { toast } from "sonner"
+
+function TableSkeleton() {
+  return (
+    <div className="space-y-3 p-6">
+      {[1, 2, 3].map((i) => (
+        <div key={i} className="flex items-center gap-4">
+          <Skeleton className="h-4 flex-1" />
+          <Skeleton className="h-4 w-16" />
+          <Skeleton className="h-4 w-20" />
+          <Skeleton className="h-4 w-16" />
+          <Skeleton className="h-8 w-32" />
+        </div>
+      ))}
+    </div>
+  )
+}
 
 export default function ProfessionalAppointmentsPage() {
   const [statusFilter, setStatusFilter] = useState<string | undefined>()
@@ -24,11 +42,12 @@ export default function ProfessionalAppointmentsPage() {
   const filters = ["", "scheduled", "confirmed", "completed", "cancelled"]
 
   async function handleStatus(id: number, status: string) {
-    try {
-      await updateMutation.mutateAsync({ id, data: { status } })
-    } catch {
-      // handled by mutation
-    }
+    const label = status.charAt(0).toUpperCase() + status.slice(1)
+    toast.promise(updateMutation.mutateAsync({ id, data: { status } }), {
+      loading: `Updating appointment...`,
+      success: `Appointment ${label.toLowerCase()}`,
+      error: `Failed to ${label.toLowerCase()} appointment`,
+    })
   }
 
   return (
@@ -57,7 +76,7 @@ export default function ProfessionalAppointmentsPage() {
       <Card>
         <CardContent className="p-0">
           {isLoading ? (
-            <div className="p-6 text-sm text-muted-foreground">Loading...</div>
+            <TableSkeleton />
           ) : !appointments?.length ? (
             <div className="p-6 text-sm text-muted-foreground">
               No appointments found.

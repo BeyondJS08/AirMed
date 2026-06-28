@@ -9,9 +9,31 @@ import { getAvailableSlots } from "@/services/availability"
 import { createAppointment } from "@/services/appointments"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
+import { toast } from "sonner"
 import type { User, Slot } from "@/types"
 
 type Step = "professional" | "service" | "slot" | "confirm"
+
+function StepIndicator({ step, current }: { step: Step; current: Step }) {
+  const steps: Step[] = ["professional", "service", "slot", "confirm"]
+  const idx = steps.indexOf(step)
+  const curIdx = steps.indexOf(current)
+  return (
+    <span
+      className={
+        idx < curIdx
+          ? "text-muted-foreground"
+          : idx === curIdx
+            ? "font-medium text-foreground"
+            : "text-muted-foreground/50"
+      }
+    >
+      {idx + 1}. {step.charAt(0).toUpperCase() + step.slice(1)}
+      {idx < 3 && " → "}
+    </span>
+  )
+}
 
 export default function BookAppointmentPage() {
   const router = useRouter()
@@ -41,7 +63,11 @@ export default function BookAppointmentPage() {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["appointments"] })
+      toast.success("Appointment booked successfully")
       router.push("/appointments")
+    },
+    onError: () => {
+      toast.error("Failed to book appointment")
     },
   })
 
@@ -63,19 +89,28 @@ export default function BookAppointmentPage() {
       </div>
 
       <div className="flex gap-2 text-sm text-muted-foreground">
-        {["professional", "service", "slot", "confirm"].map((s, i) => (
-          <span key={s} className={step === s ? "font-medium text-foreground" : ""}>
-            {i + 1}. {s.charAt(0).toUpperCase() + s.slice(1)}
-            {i < 3 && " → "}
-          </span>
-        ))}
+        <StepIndicator step="professional" current={step} />
+        <StepIndicator step="service" current={step} />
+        <StepIndicator step="slot" current={step} />
+        <StepIndicator step="confirm" current={step} />
       </div>
 
       {step === "professional" && (
         <section>
           <h2 className="mb-3 text-lg font-medium">Select a Professional</h2>
           {loadingPros ? (
-            <p className="text-sm text-muted-foreground">Loading...</p>
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <Card key={i}>
+                  <CardHeader>
+                    <Skeleton className="h-5 w-48" />
+                  </CardHeader>
+                  <CardContent>
+                    <Skeleton className="h-4 w-32" />
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           ) : (
             <div className="grid gap-3">
               {(professionals || []).map((p) => (
@@ -111,7 +146,18 @@ export default function BookAppointmentPage() {
             </Button>
           </div>
           {loadingServices ? (
-            <p className="text-sm text-muted-foreground">Loading...</p>
+            <div className="space-y-3">
+              {[1, 2].map((i) => (
+                <Card key={i}>
+                  <CardHeader>
+                    <Skeleton className="h-5 w-36" />
+                  </CardHeader>
+                  <CardContent>
+                    <Skeleton className="h-4 w-24" />
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           ) : !services?.length ? (
             <p className="text-sm text-muted-foreground">No services available.</p>
           ) : (
@@ -149,7 +195,7 @@ export default function BookAppointmentPage() {
           </div>
           <input
             type="date"
-            className="mb-4 block rounded-md border px-3 py-2 text-sm"
+            className="mb-4 block w-fit rounded-md border px-3 py-2 text-sm"
             value={selectedDate}
             min={new Date().toISOString().slice(0, 10)}
             onChange={(e) => {
@@ -160,11 +206,15 @@ export default function BookAppointmentPage() {
           {selectedDate && (
             <>
               {loadingSlots ? (
-                <p className="text-sm text-muted-foreground">Loading available slots...</p>
+                <div className="flex gap-2">
+                  {[1, 2, 3, 4].map((i) => (
+                    <Skeleton key={i} className="h-9 w-20" />
+                  ))}
+                </div>
               ) : !slots?.length ? (
                 <p className="text-sm text-muted-foreground">No available slots for this date.</p>
               ) : (
-                <div className="grid grid-cols-3 gap-2">
+                <div className="flex flex-wrap gap-2">
                   {slots.map((slot) => (
                     <Button
                       key={slot.start_time}
