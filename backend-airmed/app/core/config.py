@@ -11,6 +11,8 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_ID: str | None = None
     GOOGLE_CLIENT_SECRET: str | None = None
     REDIS_URL: str | None = None
+    GOOGLE_REDIRECT_URI: str | None = None
+    GOOGLE_CALENDAR_ENABLED: bool = True
 
     model_config = SettingsConfigDict(env_file=".env")
 
