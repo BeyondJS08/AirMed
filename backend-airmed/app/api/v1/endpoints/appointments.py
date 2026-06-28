@@ -1,6 +1,6 @@
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
@@ -20,10 +20,11 @@ router = APIRouter()
 @router.post("/", response_model=AppointmentOut, status_code=status.HTTP_201_CREATED)
 async def create_new_appointment(
     data: AppointmentCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return create_appointment(db, data, current_user)
+    return create_appointment(db, data, current_user, background_tasks)
 
 
 @router.get("/", response_model=list[AppointmentOut])
@@ -55,6 +56,7 @@ async def get_appointment_by_id(
 async def update_appointment_by_id(
     appointment_id: int,
     data: AppointmentUpdate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -63,12 +65,13 @@ async def update_appointment_by_id(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Appointment not found")
     if appt.patient_id != current_user.id and appt.professional_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your appointment")
-    return update_appointment(db, appt, data, current_user)
+    return update_appointment(db, appt, data, current_user, background_tasks)
 
 
 @router.delete("/{appointment_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def cancel_appointment(
     appointment_id: int,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -77,4 +80,4 @@ async def cancel_appointment(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Appointment not found")
     if appt.patient_id != current_user.id and appt.professional_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your appointment")
-    update_appointment(db, appt, AppointmentUpdate(status="cancelled"), current_user)
+    update_appointment(db, appt, AppointmentUpdate(status="cancelled"), current_user, background_tasks)

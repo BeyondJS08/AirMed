@@ -1,13 +1,18 @@
+import logging
 from datetime import date, datetime, time, timedelta, timezone
 
-from fastapi import HTTPException, status
+from fastapi import BackgroundTasks, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.db.session import SessionLocal
 from app.models.appointment import Appointment
 from app.models.availability import Availability
 from app.models.user import User
-from app.services.notification_service import notify_appointment_status
 from app.schemas.appointment import AppointmentCreate, AppointmentUpdate
+from app.services.google_calendar_service import ensure_sync
+from app.services.notification_service import notify_appointment_status
+
+logger = logging.getLogger(__name__)
 
 
 ALLOWED_TRANSITIONS: dict[str, set[str]] = {
@@ -15,6 +20,28 @@ ALLOWED_TRANSITIONS: dict[str, set[str]] = {
     "confirmed": {"completed", "cancelled"},
     "completed": {"cancelled"},
 }
+
+
+def _sync_appointment(operation: str, appointment_id: int) -> None:
+    db = SessionLocal()
+    try:
+        appointment = (
+            db.query(Appointment).filter(Appointment.id == appointment_id).first()
+        )
+        if appointment:
+            ensure_sync(db, operation, appointment)
+    except Exception:
+        logger.exception(
+            "Background calendar sync failed for appointment %s", appointment_id
+        )
+    finally:
+        db.close()
+
+
+def _schedule_sync(background_tasks: BackgroundTasks | None, operation: str, appointment: Appointment) -> None:
+    if background_tasks is None:
+        return
+    background_tasks.add_task(_sync_appointment, operation, appointment.id)
 
 
 def _validate_slot_available(
@@ -79,7 +106,12 @@ def _validate_transition(current_user: User, appointment: Appointment, new_statu
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your appointment")
 
 
-def create_appointment(db: Session, data: AppointmentCreate, current_user: User) -> Appointment:
+def create_appointment(
+    db: Session,
+    data: AppointmentCreate,
+    current_user: User,
+    background_tasks: BackgroundTasks | None = None,
+) -> Appointment:
     _validate_slot_available(db, data.professional_id, data.start_time, data.end_time)
     appt = Appointment(
         professional_id=data.professional_id,
@@ -95,6 +127,7 @@ def create_appointment(db: Session, data: AppointmentCreate, current_user: User)
     db.commit()
     db.refresh(appt)
     notify_appointment_status(db, appt)
+    _schedule_sync(background_tasks, "create", appt)
     return appt
 
 
@@ -127,6 +160,7 @@ def update_appointment(
     appointment: Appointment,
     data: AppointmentUpdate,
     current_user: User,
+    background_tasks: BackgroundTasks | None = None,
 ) -> Appointment:
     if data.status is not None:
         _validate_transition(current_user, appointment, data.status)
@@ -138,4 +172,10 @@ def update_appointment(
     db.refresh(appointment)
     if data.status is not None and data.status in ("confirmed", "completed", "cancelled"):
         notify_appointment_status(db, appointment)
+    if data.status is not None:
+        if data.status == "cancelled":
+            _schedule_sync(background_tasks, "delete", appointment)
+        elif data.status in ("scheduled", "confirmed"):
+            operation = "create" if not appointment.google_event_id else "update"
+            _schedule_sync(background_tasks, operation, appointment)
     return appointment
