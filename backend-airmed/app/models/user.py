@@ -12,4 +12,5 @@ class User(Base):
     phone_number = Column(String, nullable=True)
     is_active = Column(Boolean, default=True)
     is_professional = Column(Boolean, default=False)
+    timezone = Column(String(50), default="America/Sao_Paulo")
     google_id = Column(String, unique=True, nullable=True)
