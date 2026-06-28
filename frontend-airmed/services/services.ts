@@ -23,8 +23,9 @@ export interface ServiceUpdate {
   price?: number | null
 }
 
-export async function listServices(): Promise<ServiceOut[]> {
-  return apiFetch<ServiceOut[]>("/api/v1/services/")
+export async function listServices(professionalId?: number): Promise<ServiceOut[]> {
+  const params = professionalId ? `?professional_id=${professionalId}` : ""
+  return apiFetch<ServiceOut[]>(`/api/v1/services/${params}`)
 }
 
 export async function createService(data: ServiceCreate): Promise<ServiceOut> {

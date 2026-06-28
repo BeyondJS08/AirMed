@@ -2,10 +2,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import type { ServiceCreate, ServiceUpdate } from "@/services/services"
 import * as servicesService from "@/services/services"
 
-export function useServices() {
+export function useServices(professionalId?: number) {
   return useQuery({
-    queryKey: ["services"],
-    queryFn: () => servicesService.listServices(),
+    queryKey: ["services", professionalId],
+    queryFn: () => servicesService.listServices(professionalId),
   })
 }
 

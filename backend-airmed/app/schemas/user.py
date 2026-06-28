@@ -20,6 +20,7 @@ class UserOut(UserBase):
     id: int
     is_active: bool
     is_professional: bool
+    timezone: str | None = None
     google_id: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
