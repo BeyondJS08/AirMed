@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.models.appointment import Appointment
 from app.models.availability import Availability
 from app.models.user import User
+from app.services.notification_service import notify_appointment_status
 from app.schemas.appointment import AppointmentCreate, AppointmentUpdate
 
 
@@ -93,6 +94,7 @@ def create_appointment(db: Session, data: AppointmentCreate, current_user: User)
     db.add(appt)
     db.commit()
     db.refresh(appt)
+    notify_appointment_status(db, appt)
     return appt
 
 
@@ -134,4 +136,6 @@ def update_appointment(
         appointment.status = data.status
     db.commit()
     db.refresh(appointment)
+    if data.status is not None and data.status in ("confirmed", "completed", "cancelled"):
+        notify_appointment_status(db, appointment)
     return appointment

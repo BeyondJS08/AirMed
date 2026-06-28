@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
+from app.models.appointment import Appointment
 from app.models.notification import Notification, NotificationChannel, NotificationStatus
 
 
@@ -68,3 +69,25 @@ def mark_read(db: Session, notification_id: int) -> Notification | None:
         notification.read_at = datetime.now(timezone.utc)
         db.commit()
     return notification
+
+
+def notify_appointment_status(db: Session, appointment: Appointment) -> list[Notification]:
+    status_map = {
+        "scheduled": ("Appointment Booked", "Your appointment has been scheduled."),
+        "confirmed": ("Appointment Confirmed", "Your appointment has been confirmed."),
+        "completed": ("Appointment Completed", "Your appointment has been completed."),
+        "cancelled": ("Appointment Cancelled", "Your appointment has been cancelled."),
+    }
+    subject, message = status_map.get(appointment.status, ("Notification", "Your appointment has been updated."))
+    notifs = []
+    for user_id in (appointment.patient_id, appointment.professional_id):
+        n = create_notification(
+            db,
+            user_id=user_id,
+            channel=NotificationChannel.email,
+            subject=subject,
+            message=message,
+            appointment_id=appointment.id,
+        )
+        notifs.append(n)
+    return notifs
