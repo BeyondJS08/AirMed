@@ -3,6 +3,19 @@
 .env.example
 .docs
 
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.pytest_cache/
+
+# Node
+node_modules/
+.next/
 
 # OS
 .DS_Store
+
+# IDE (local only)
+.vscode/
