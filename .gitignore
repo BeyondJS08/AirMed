@@ -17,5 +17,8 @@ node_modules/
 # OS
 .DS_Store
 
+# LLM models (large GGUF files, downloaded separately)
+/models/
+
 # IDE (local only)
 .vscode/

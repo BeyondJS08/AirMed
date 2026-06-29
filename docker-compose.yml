@@ -46,6 +46,12 @@ services:
     volumes:
       - ./models:/models
     command: -m /models/gemma-4-E2B.gguf --host 0.0.0.0 --port 8080 --json-schema
+    # Uncomment for GPU acceleration:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - capabilities: ["gpu"]
 
 volumes:
   postgres_data:

@@ -35,11 +35,11 @@ def test_entities_defaults_are_none():
 
 
 def test_llm_config_defaults():
-    assert hasattr(settings, "LLM_BASE_URL")
-    assert hasattr(settings, "LLM_TIMEOUT")
-    assert hasattr(settings, "LLM_ENABLED")
-    assert hasattr(settings, "LLM_TEMPERATURE")
-    assert hasattr(settings, "LLM_MODEL")
+    assert settings.LLM_BASE_URL == "http://localhost:8080/v1"
+    assert settings.LLM_MODEL == "gemma-4-E2B"
+    assert settings.LLM_TIMEOUT == 30.0
+    assert settings.LLM_ENABLED is False
+    assert settings.LLM_TEMPERATURE == 0.1
 
 
 # ────────────────────────────────────────────────────────────
@@ -47,10 +47,11 @@ def test_llm_config_defaults():
 # ────────────────────────────────────────────────────────────
 
 
-def test_build_system_prompt_includes_date():
+def test_build_system_prompt_includes_date_and_time():
     prompt = build_system_prompt()
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    assert today in prompt
+    now = datetime.now(timezone.utc)
+    assert now.strftime("%Y-%m-%d") in prompt
+    assert now.strftime("%H:%M") in prompt
 
 
 def test_build_system_prompt_includes_spanish():

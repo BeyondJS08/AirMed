@@ -69,9 +69,13 @@ def interpret_message(text: str) -> IntentResult | None:
         return None
 
 
+def _base_url() -> str:
+    return settings.LLM_BASE_URL.rstrip("/v1").rstrip("/")
+
+
 def health_check() -> bool:
     try:
-        resp = httpx.get(f"{settings.LLM_BASE_URL}/health", timeout=5.0)
+        resp = httpx.get(f"{_base_url()}/health", timeout=5.0)
         resp.raise_for_status()
         return True
     except Exception:
