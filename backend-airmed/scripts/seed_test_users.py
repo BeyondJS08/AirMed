@@ -17,13 +17,13 @@ from app.models.user import User
 
 TEST_USERS = [
     {
-        "email": "patient@airmed.test",
+        "email": "patient@airmed.dev",
         "full_name": "Test Patient",
         "password": "Patient123!",
         "is_professional": False,
     },
     {
-        "email": "professional@airmed.test",
+        "email": "professional@airmed.dev",
         "full_name": "Dr. Test Professional",
         "password": "Pro123!",
         "is_professional": True,
