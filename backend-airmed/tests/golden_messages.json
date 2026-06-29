@@ -1,0 +1,42 @@
+[
+  {
+    "text": "Quiero una cita mañana a las 3pm con el dentista",
+    "expected": {"intent": "schedule", "entities": {"date": "2026-06-29", "time": "15:00", "service": "dentista"}}
+  },
+  {
+    "text": "Necesito cancelar mi cita del viernes",
+    "expected": {"intent": "cancel", "entities": {"date": "2026-06-26"}}
+  },
+  {
+    "text": "Tengo consulta el lunes, hay que cambiarla para el martes a las 10",
+    "expected": {"intent": "reschedule", "entities": {"date": "2026-06-29", "time": "10:00"}}
+  },
+  {
+    "text": "Hola, buenos días",
+    "expected": {"intent": "unknown", "entities": {}}
+  },
+  {
+    "text": "Quiero saber mis citas para esta semana",
+    "expected": {"intent": "query", "entities": {}}
+  },
+  {
+    "text": "Agenda una consulta virtual para el jueves a las 11 con la Dra. García",
+    "expected": {"intent": "schedule", "entities": {"date": "2026-07-02", "time": "11:00", "professional": "Dra. García", "modality": "virtual"}}
+  },
+  {
+    "text": "Mi cita número 5, quiero cancelarla",
+    "expected": {"intent": "cancel", "entities": {"appointment_id": 5}}
+  },
+  {
+    "text": "Cambia mi cita del miércoles 10am al jueves 2pm",
+    "expected": {"intent": "reschedule", "entities": {"date": "2026-07-01", "time": "14:00"}}
+  },
+  {
+    "text": "Quiero una limpieza dental el próximo lunes",
+    "expected": {"intent": "schedule", "entities": {"date": "2026-07-06", "service": "limpieza dental"}}
+  },
+  {
+    "text": "Necesito una consulta presencial mañana a primera hora",
+    "expected": {"intent": "schedule", "entities": {"date": "2026-06-29", "modality": "in_person"}}
+  }
+]
