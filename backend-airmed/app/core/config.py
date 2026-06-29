@@ -13,6 +13,11 @@ class Settings(BaseSettings):
     REDIS_URL: str | None = None
     GOOGLE_REDIRECT_URI: str | None = None
     GOOGLE_CALENDAR_ENABLED: bool = True
+    LLM_BASE_URL: str = "http://localhost:8080/v1"
+    LLM_MODEL: str = "gemma-4-E2B"
+    LLM_TIMEOUT: float = 30.0
+    LLM_ENABLED: bool = False
+    LLM_TEMPERATURE: float = 0.1
 
     model_config = SettingsConfigDict(env_file=".env")
 
