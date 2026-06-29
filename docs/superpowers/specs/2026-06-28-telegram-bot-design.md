@@ -116,20 +116,20 @@ IDLE
 ### bot_conversation_service.py
 
 ```python
+def resolve_user(chat_id: int) -> User | None: ...
+def link_user(chat_id: int, email: str) -> User | None: ...
 def process_message(
     chat_id: int,
     text: str | None,
     callback_data: str | None,
-    professional_id: int,
-    patient_id: int,
+    user: User,
 ) -> BotReply:
     ...
 ```
 
-- `chat_id`: Telegram chat ID
-- `text`: message text (None for callback queries)
-- `callback_data`: inline button data (None for text messages)
-- `professional_id` / `patient_id`: resolved from session or provided by caller
+- `resolve_user(chat_id)`: looks up `bot:link:{chat_id}` in Redis → returns `User` or `None`
+- `link_user(chat_id, email)`: sets `bot:link:{chat_id}` → returns linked `User` or `None` if email not found
+- `process_message`: `user` already resolved. If `is_professional`, serves professional-facing flows; otherwise, patient-facing flows. For MVP, patient-facing only.
 
 ### telegram_bot_service.py
 
@@ -146,7 +146,8 @@ def parse_update(payload: dict) -> tuple[int, str | None, str | None]: ...
 
 - Accepts raw JSON from Telegram
 - `telegram_bot_service.parse_update()` extracts `chat_id`, `text`, `callback_data`
-- Calls `bot_conversation_service.process_message()`
+- `resolve_user(chat_id)` — if `None`, enters linking flow (ask for email; `link_user()` on reply)
+- Once linked, calls `bot_conversation_service.process_message(user=user, ...)`
 - Calls `telegram_bot_service.send_message()` with the `BotReply`
 - Returns `200 OK` (always — Telegram retries on non-200)
 
@@ -163,6 +164,37 @@ https://api.telegram.org/bot{TOKEN}/setWebhook?url=https://example.com/api/v1/bo
 | `BOT_SESSION_TTL` | `1800` | Seconds until conversation session expires. |
 
 **+ existing Redis config** (`REDIS_URL`) — already required for session storage.
+
+## Chat-to-User Linking
+
+Telegram doesn't know who the user is in our system. On first interaction, the bot asks:
+
+> "Bienvenido a AirMed. Para usar este bot, necesito vincular tu cuenta. ¿Cuál es tu email registrado?"
+
+User replies with their email → bot looks up the `User` by email → stores mapping in a Postgres table or Redis key:
+
+```
+bot:link:{chat_id} → {user_id, is_professional}
+```
+
+Subsequent messages auto-resolve the user from `chat_id`.
+
+### Data Model (new table or Redis key)
+
+Option: Redis-only (simpler, TTL not needed since link is permanent). A new Postgres `BotLink` table is also valid.
+
+```python
+# Redis: bot:link:{chat_id} → json: {"user_id": 1, "is_professional": false}
+```
+
+For simplicity, Redis is sufficient — backed up by Redis persistence, no schema migration needed. The link is set once and never expires.
+
+### Error Handling
+
+| Scenario | Behavior |
+|---|---|
+| Unknown email | Reply "No encontré un usuario con ese email. ¿Quieres intentar de nuevo?" Stay in linking state. |
+| Multiple users same email | Impossible (email is unique). |
 
 ## Error Handling
 
@@ -198,6 +230,12 @@ https://api.telegram.org/bot{TOKEN}/setWebhook?url=https://example.com/api/v1/bo
 - `test_flow_no_availability` — no slots found → friendly reply
 - `test_session_expiry` — expired TTL → reset
 - `test_invalid_callback` — bad callback data → error reply
+
+**linking_service:**
+- `test_link_user_valid_email` — email found → link stored, returns user
+- `test_link_user_invalid_email` — email not found → returns None
+- `test_resolve_user_linked` — existing chat_id → returns user
+- `test_resolve_user_not_linked` — unknown chat_id → returns None
 
 **telegram_service:**
 - `test_parse_message` — extract chat_id + text from Telegram update
