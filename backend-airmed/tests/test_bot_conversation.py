@@ -2,9 +2,8 @@
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
-from app.schemas.bot import BotReply
+from app.schemas.bot import BotReply, SessionState
 from app.services.bot_conversation_service import (
-    SessionState,
     clear_session,
     get_session,
     process_message,
@@ -123,3 +122,83 @@ def test_process_message_unknown(test_user):
         reply = process_message(12345, "Hola", None, test_user)
 
     assert "no entend" in reply.text.lower()
+
+
+def test_flow_llm_failure(test_user):
+    with (
+        patch("app.services.bot_conversation_service.interpret_message", return_value=None),
+        patch("app.services.bot_conversation_service.get_session", return_value=None),
+    ):
+        reply = process_message(12345, "Quiero cita", None, test_user)
+    assert "no pude procesar" in reply.text.lower()
+
+
+def test_flow_no_availability(test_user):
+    intent_result = {
+        "intent": "schedule",
+        "entities": {"date": "2026-07-15", "time": "10:00"},
+        "confidence": 0.9,
+    }
+    with (
+        patch("app.services.bot_conversation_service.interpret_message", return_value=intent_result),
+        patch("app.services.bot_conversation_service.get_available_slots", return_value=[]),
+        patch("app.services.bot_conversation_service.get_session", return_value=None),
+    ):
+        reply = process_message(12345, "Quiero cita", None, test_user)
+    assert "disponibilidad" in reply.text.lower() or "disponible" in reply.text.lower()
+
+
+def test_session_expiry(test_user):
+    with patch("app.services.bot_conversation_service.get_session", return_value=None):
+        reply = process_message(12345, None, "confirm_slot:0", test_user)
+    assert "expirado" in reply.text.lower()
+
+
+def test_invalid_callback(test_user):
+    session = {"state": SessionState.awaiting_confirmation.value}
+    with patch("app.services.bot_conversation_service.get_session", return_value=session):
+        reply = process_message(12345, None, "unknown_callback", test_user)
+    assert "no válida" in reply.text.lower()
+
+
+def test_reschedule_flow(test_user, test_professional):
+    intent_result = {
+        "intent": "reschedule",
+        "entities": {"date": "2026-07-20"},
+        "confidence": 0.9,
+    }
+    existing_appointment = MagicMock(id=1, professional_id=test_professional.id)
+    proposed_slots = [
+        {"start_time": "2026-07-20T10:00:00", "end_time": "2026-07-20T11:00:00"},
+    ]
+    with (
+        patch("app.services.bot_conversation_service.interpret_message", return_value=intent_result),
+        patch("app.services.bot_conversation_service.get_appointments", return_value=[existing_appointment]),
+        patch("app.services.bot_conversation_service.get_available_slots", return_value=proposed_slots),
+        patch("app.services.bot_conversation_service.save_session") as mock_save,
+        patch("app.services.bot_conversation_service.get_session", return_value=None),
+    ):
+        reply = process_message(12345, "Reprogramar mi cita", None, test_user)
+    assert reply.buttons
+    assert "reschedule_slot:0" in reply.buttons[0][0].callback_data
+    mock_save.assert_called_once()
+    saved_session = mock_save.call_args[0][1]
+    assert saved_session["state"] == SessionState.reschedule_confirming.value
+
+    session = {
+        "state": SessionState.reschedule_confirming.value,
+        "appointment_id": 1,
+        "proposed_slots": proposed_slots,
+    }
+    background_tasks = MagicMock()
+    with (
+        patch("app.services.bot_conversation_service.get_session", return_value=session),
+        patch("app.services.bot_conversation_service.get_appointment", return_value=existing_appointment),
+        patch("app.services.bot_conversation_service.update_appointment") as mock_update,
+        patch("app.services.bot_conversation_service.clear_session") as mock_clear,
+    ):
+        reply = process_message(12345, None, "reschedule_slot:0", test_user, background_tasks=background_tasks)
+    assert "reprogramada" in reply.text.lower()
+    mock_update.assert_called_once()
+    assert mock_update.call_args.kwargs.get("background_tasks") is background_tasks
+    mock_clear.assert_called_once()

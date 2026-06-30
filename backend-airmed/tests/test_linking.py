@@ -29,3 +29,18 @@ def test_link_user_valid_email(test_user):
     assert result is not None
     assert result.id == test_user.id
     mock_set.assert_called_once()
+
+
+def test_link_user_invalid_email():
+    with patch("app.services.linking_service.redis_client.set") as mock_set:
+        result = link_user(12345, "unknown@example.com")
+    assert result is None
+    mock_set.assert_not_called()
+
+
+def test_resolve_user_linked(test_user):
+    with patch("app.services.linking_service.redis_client.get") as mock_get:
+        mock_get.return_value = f'{{"user_id": {test_user.id}, "is_professional": false}}'
+        result = resolve_user(12345)
+    assert result is not None
+    assert result.id == test_user.id
