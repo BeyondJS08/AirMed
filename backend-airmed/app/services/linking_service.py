@@ -43,7 +43,10 @@ def link_user(chat_id: int, email: str) -> User | None:
         user = db.query(User).filter(User.email == email).first()
         if not user:
             return None
-        redis_client.set(f"bot:link:{chat_id}", json.dumps({"user_id": user.id}))
+        redis_client.set(
+            f"bot:link:{chat_id}",
+            json.dumps({"user_id": user.id, "is_professional": user.is_professional}),
+        )
         return user
     finally:
         db.close()

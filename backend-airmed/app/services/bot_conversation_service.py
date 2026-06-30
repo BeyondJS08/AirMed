@@ -1,12 +1,13 @@
-import enum
 import json
 import logging
 from datetime import date, datetime, timedelta, timezone
 
+from fastapi import BackgroundTasks, HTTPException
+
 from app.core.config import settings
 from app.db.session import SessionLocal
 from app.schemas.appointment import AppointmentCreate, AppointmentUpdate
-from app.schemas.bot import BotReply, Button
+from app.schemas.bot import BotReply, Button, SessionState
 from app.services.appointment_service import create_appointment, get_appointment, get_appointments, update_appointment
 from app.services.availability_service import get_available_slots
 from app.services.llm_service import interpret_message
@@ -22,17 +23,6 @@ try:
     )
 except Exception:
     redis_client = None
-
-
-class SessionState(str, enum.Enum):
-    idle = "idle"
-    awaiting_confirmation = "awaiting_confirmation"
-    cancel_confirming = "cancel_confirming"
-    reschedule_confirming = "reschedule_confirming"
-    booking = "booking"
-    cancelling = "cancelling"
-    rescheduling = "rescheduling"
-    linking = "linking"
 
 
 def _session_key(chat_id: int) -> str:
@@ -75,12 +65,12 @@ def clear_session(chat_id: int) -> None:
         logger.warning("clear_session failed", exc_info=True)
 
 
-def _build_slot_buttons(slots: list[dict]) -> list[list[Button]]:
+def _build_slot_buttons(slots: list[dict], callback_prefix: str = "confirm_slot") -> list[list[Button]]:
     buttons = []
     for i, slot in enumerate(slots):
         start = datetime.fromisoformat(slot["start_time"])
         label = start.strftime("%d/%m %H:%M")
-        buttons.append([Button(text=label, callback_data=f"confirm_slot:{i}")])
+        buttons.append([Button(text=label, callback_data=f"{callback_prefix}:{i}")])
     return buttons
 
 
@@ -102,6 +92,8 @@ def handle_cancel(chat_id: int, user, entities: dict) -> BotReply:
         appointment = None
         if appointment_id:
             appointment = get_appointment(db, appointment_id)
+            if not appointment:
+                return BotReply(text="No encontré ninguna cita con esos datos.")
         if not appointment:
             appointments = get_appointments(db, current_user=user)
             if not appointments:
@@ -147,6 +139,10 @@ def handle_schedule(chat_id: int, user, entities: dict) -> BotReply:
     db = SessionLocal()
     try:
         slots = get_available_slots(db, professional_id=professional_id, target_date=target_date, service_id=None)
+    except HTTPException as exc:
+        if exc.status_code == 404:
+            return BotReply(text="No hay profesionales disponibles para agendar.")
+        raise
     finally:
         db.close()
 
@@ -168,7 +164,91 @@ def handle_schedule(chat_id: int, user, entities: dict) -> BotReply:
     )
 
 
-def handle_confirm_slot(chat_id: int, user, session: dict, slot_index: int) -> BotReply:
+def handle_reschedule(chat_id: int, user, entities: dict) -> BotReply:
+    appointment_id = entities.get("appointment_id")
+    db = SessionLocal()
+    try:
+        appointment = None
+        if appointment_id:
+            appointment = get_appointment(db, appointment_id)
+            if not appointment:
+                return BotReply(text="No encontré ninguna cita con esos datos.")
+        if not appointment:
+            appointments = get_appointments(db, current_user=user)
+            if not appointments:
+                return BotReply(text="No encontré citas para reprogramar.")
+            appointment = appointments[0]
+
+        date_str = entities.get("date")
+        if not date_str:
+            return BotReply(text="¿Para qué fecha quieres reprogramarla? Ejemplo: mañana o 2026-07-15.")
+
+        target_date = date.fromisoformat(date_str)
+        professional_id = appointment.professional_id
+        try:
+            slots = get_available_slots(db, professional_id=professional_id, target_date=target_date, service_id=None)
+        except HTTPException as exc:
+            if exc.status_code == 404:
+                return BotReply(text="No hay profesionales disponibles para agendar.")
+            raise
+
+        if not slots:
+            return BotReply(text=f"No tengo disponibilidad para el {date_str}. ¿Quieres intentar otra fecha?")
+
+        save_session(chat_id, {
+            "state": SessionState.reschedule_confirming.value,
+            "intent": "reschedule",
+            "entities": entities,
+            "proposed_slots": slots,
+            "appointment_id": appointment.id,
+            "professional_id": professional_id,
+        })
+        return BotReply(
+            text=f"Tengo estos horarios disponibles para el {date_str}:\nElige uno:",
+            buttons=_build_slot_buttons(slots, callback_prefix="reschedule_slot"),
+        )
+    finally:
+        db.close()
+
+
+def handle_reschedule_slot(chat_id: int, user, session: dict, slot_index: int, background_tasks=None) -> BotReply:
+    slots = session.get("proposed_slots", [])
+    if slot_index < 0 or slot_index >= len(slots):
+        return BotReply(text="Opción no válida. Intenta de nuevo.")
+
+    slot = slots[slot_index]
+    start_time = datetime.fromisoformat(slot["start_time"])
+    end_time = datetime.fromisoformat(slot["end_time"])
+    if start_time.tzinfo is None:
+        start_time = start_time.replace(tzinfo=timezone.utc)
+    if end_time.tzinfo is None:
+        end_time = end_time.replace(tzinfo=timezone.utc)
+
+    appointment_id = session.get("appointment_id")
+    db = SessionLocal()
+    try:
+        appointment = get_appointment(db, appointment_id)
+        if not appointment:
+            return BotReply(text="No encontré ninguna cita con esos datos.")
+        update_appointment(
+            db,
+            appointment,
+            AppointmentUpdate(start_time=start_time, end_time=end_time),
+            current_user=user,
+            background_tasks=background_tasks,
+        )
+        clear_session(chat_id)
+        return BotReply(
+            text=f"¡Listo! Tu cita fue reprogramada para el {start_time.strftime('%d/%m/%Y')} a las {start_time.strftime('%H:%M')}."
+        )
+    except Exception:
+        logger.warning("handle_reschedule_slot failed", exc_info=True)
+        return BotReply(text="Hubo un error al reprogramar. Intenta de nuevo.")
+    finally:
+        db.close()
+
+
+def handle_confirm_slot(chat_id: int, user, session: dict, slot_index: int, background_tasks=None) -> BotReply:
     slots = session.get("proposed_slots", [])
     if slot_index < 0 or slot_index >= len(slots):
         return BotReply(text="Opción no válida. Intenta de nuevo.")
@@ -194,7 +274,7 @@ def handle_confirm_slot(chat_id: int, user, session: dict, slot_index: int) -> B
                 is_virtual=(session.get("entities", {}).get("modality") == "virtual"),
             ),
             current_user=user,
-            background_tasks=None,
+            background_tasks=background_tasks,
         )
         clear_session(chat_id)
         return BotReply(
@@ -221,7 +301,13 @@ def _intent_entities(intent_result) -> dict:
     return intent_result.entities.model_dump(exclude_none=True)
 
 
-def process_message(chat_id: int, text: str | None, callback_data: str | None, user) -> BotReply:
+def process_message(
+    chat_id: int,
+    text: str | None,
+    callback_data: str | None,
+    user,
+    background_tasks=None,
+) -> BotReply:
     session = get_session(chat_id)
 
     if callback_data:
@@ -232,7 +318,13 @@ def process_message(chat_id: int, text: str | None, callback_data: str | None, u
                 index = int(callback_data.split(":", 1)[1])
             except ValueError:
                 return BotReply(text="Opción no válida.")
-            return handle_confirm_slot(chat_id, user, session, index)
+            return handle_confirm_slot(chat_id, user, session, index, background_tasks=background_tasks)
+        if callback_data.startswith("reschedule_slot:"):
+            try:
+                index = int(callback_data.split(":", 1)[1])
+            except ValueError:
+                return BotReply(text="Opción no válida.")
+            return handle_reschedule_slot(chat_id, user, session, index, background_tasks=background_tasks)
         if callback_data == "cancel_yes":
             appointment_id = session.get("appointment_id")
             db = SessionLocal()
@@ -244,7 +336,7 @@ def process_message(chat_id: int, text: str | None, callback_data: str | None, u
                         appointment,
                         AppointmentUpdate(status="cancelled"),
                         current_user=user,
-                        background_tasks=None,
+                        background_tasks=background_tasks,
                     )
                 clear_session(chat_id)
                 return BotReply(text="Tu cita ha sido cancelada.")
@@ -269,7 +361,7 @@ def process_message(chat_id: int, text: str | None, callback_data: str | None, u
     elif intent_value == "cancel":
         return handle_cancel(chat_id, user, entities)
     elif intent_value == "reschedule":
-        return BotReply(text="Función de reprogramación en desarrollo.")
+        return handle_reschedule(chat_id, user, entities)
     elif intent_value == "query":
         return handle_query(user)
 
