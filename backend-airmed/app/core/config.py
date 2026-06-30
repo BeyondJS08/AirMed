@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     LLM_ENABLED: bool = False
     LLM_TEMPERATURE: float = 0.1
     TELEGRAM_BOT_TOKEN: str | None = None
+    TELEGRAM_WEBHOOK_SECRET: str | None = None
     BOT_SESSION_TTL: int = 1800
 
     model_config = SettingsConfigDict(env_file=".env")
