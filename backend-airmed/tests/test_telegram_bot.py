@@ -2,6 +2,7 @@
 from unittest.mock import patch
 
 from app.schemas.bot import BotReply, Button
+from app.schemas.llm import Entities, IntentName, IntentResult
 from app.services.telegram_bot_service import parse_update, send_callback_answer, send_message, set_webhook
 
 
@@ -89,3 +90,36 @@ def test_telegram_webhook_endpoint(client):
         resp = client.post("/api/v1/bots/telegram/webhook", json=payload)
     assert resp.status_code == 200
     mock_send.assert_called_once()
+
+
+def test_webhook_end_to_end_schedule(client, test_user):
+    intent_result = IntentResult(
+        intent=IntentName.schedule,
+        entities=Entities(date="2026-07-15"),
+        confidence=0.9,
+    )
+    slots = [
+        {"start_time": "2026-07-15T10:00:00+00:00", "end_time": "2026-07-15T11:00:00+00:00"},
+    ]
+    payload = {
+        "message": {
+            "chat": {"id": 12345},
+            "text": "Quiero agendar una cita",
+        }
+    }
+    with (
+        patch("app.api.v1.endpoints.bots.resolve_user", return_value=test_user),
+        patch("app.api.v1.endpoints.bots.send_message") as mock_send,
+        patch("app.services.bot_conversation_service.interpret_message", return_value=intent_result),
+        patch("app.services.bot_conversation_service.get_available_slots", return_value=slots),
+        patch("app.services.bot_conversation_service.get_session", return_value=None),
+        patch("app.services.bot_conversation_service.save_session"),
+    ):
+        resp = client.post("/api/v1/bots/telegram/webhook", json=payload)
+
+    assert resp.status_code == 200
+    assert resp.json() == {"ok": True}
+    mock_send.assert_called_once()
+    reply = mock_send.call_args[0][1]
+    assert isinstance(reply, BotReply)
+    assert len(reply.buttons) > 0
