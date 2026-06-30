@@ -80,3 +80,46 @@ def test_process_message_confirm_slot_creates_appointment(test_user, test_profes
     assert "agendada" in reply.text.lower() or "confirmada" in reply.text.lower()
     mock_create.assert_called_once()
     mock_clear.assert_called_once()
+
+
+def test_process_message_cancel_flow(test_user, test_professional):
+    intent_result = {
+        "intent": "cancel",
+        "entities": {"appointment_id": 1},
+        "confidence": 0.85,
+    }
+    with (
+        patch("app.services.bot_conversation_service.interpret_message", return_value=intent_result),
+        patch("app.services.bot_conversation_service.get_appointment") as mock_get,
+        patch("app.services.bot_conversation_service.save_session") as mock_save,
+        patch("app.services.bot_conversation_service.get_session", return_value=None),
+    ):
+        mock_get.return_value = MagicMock(id=1, start_time=datetime(2026, 7, 15, 10, 0, tzinfo=timezone.utc))
+        reply = process_message(12345, "Cancelar mi cita", None, test_user)
+
+    assert "cancelar" in reply.text.lower() or "confirm" in reply.text.lower()
+    mock_save.assert_called_once()
+
+
+def test_process_message_query_flow(test_user):
+    intent_result = {"intent": "query", "entities": {}, "confidence": 0.7}
+    with (
+        patch("app.services.bot_conversation_service.interpret_message", return_value=intent_result),
+        patch("app.services.bot_conversation_service.get_appointments") as mock_list,
+        patch("app.services.bot_conversation_service.get_session", return_value=None),
+    ):
+        mock_list.return_value = [MagicMock(id=1, start_time=datetime(2026, 7, 15, 10, 0, tzinfo=timezone.utc))]
+        reply = process_message(12345, "Mis citas", None, test_user)
+
+    assert reply.text
+
+
+def test_process_message_unknown(test_user):
+    intent_result = {"intent": "unknown", "entities": {}, "confidence": 0.1}
+    with (
+        patch("app.services.bot_conversation_service.interpret_message", return_value=intent_result),
+        patch("app.services.bot_conversation_service.get_session", return_value=None),
+    ):
+        reply = process_message(12345, "Hola", None, test_user)
+
+    assert "no entend" in reply.text.lower()

@@ -95,6 +95,47 @@ def _default_professional_id() -> int:
         db.close()
 
 
+def handle_cancel(chat_id: int, user, entities: dict) -> BotReply:
+    appointment_id = entities.get("appointment_id")
+    db = SessionLocal()
+    try:
+        appointment = None
+        if appointment_id:
+            appointment = get_appointment(db, appointment_id)
+        if not appointment:
+            appointments = get_appointments(db, current_user=user)
+            if not appointments:
+                return BotReply(text="No encontré citas para cancelar.")
+            appointment = appointments[0]
+
+        save_session(chat_id, {
+            "state": SessionState.cancel_confirming.value,
+            "intent": "cancel",
+            "entities": entities,
+            "appointment_id": appointment.id,
+        })
+        return BotReply(
+            text=f"¿Confirmas que quieres cancelar la cita del {appointment.start_time.strftime('%d/%m/%Y')} a las {appointment.start_time.strftime('%H:%M')}?",
+            buttons=[[Button(text="Sí", callback_data="cancel_yes"), Button(text="No", callback_data="cancel_no")]],
+        )
+    finally:
+        db.close()
+
+
+def handle_query(user) -> BotReply:
+    db = SessionLocal()
+    try:
+        appointments = get_appointments(db, current_user=user)
+        if not appointments:
+            return BotReply(text="No tienes citas próximas.")
+        lines = ["Tus citas:"]
+        for appt in appointments:
+            lines.append(f"- {appt.start_time.strftime('%d/%m/%Y %H:%M')} (ID: {appt.id})")
+        return BotReply(text="\n".join(lines))
+    finally:
+        db.close()
+
+
 def handle_schedule(chat_id: int, user, entities: dict) -> BotReply:
     date_str = entities.get("date")
     if not date_str:
@@ -226,10 +267,10 @@ def process_message(chat_id: int, text: str | None, callback_data: str | None, u
     if intent_value == "schedule":
         return handle_schedule(chat_id, user, entities)
     elif intent_value == "cancel":
-        return BotReply(text="Función de cancelación en desarrollo.")
+        return handle_cancel(chat_id, user, entities)
     elif intent_value == "reschedule":
         return BotReply(text="Función de reprogramación en desarrollo.")
     elif intent_value == "query":
-        return BotReply(text="Función de consulta en desarrollo.")
+        return handle_query(user)
 
     return BotReply(text="No entendí. Puedes pedirme agendar, cancelar, reprogramar o consultar citas.")
