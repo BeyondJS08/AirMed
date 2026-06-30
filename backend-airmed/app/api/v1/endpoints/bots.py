@@ -1,3 +1,4 @@
+import hmac
 import logging
 
 from fastapi import APIRouter, BackgroundTasks, Body, Header, HTTPException, Request, status
@@ -20,7 +21,9 @@ def telegram_webhook(
     background_tasks: BackgroundTasks = BackgroundTasks(),
     x_telegram_bot_api_secret_token: str | None = Header(None, alias="X-Telegram-Bot-Api-Secret-Token"),
 ):
-    if settings.TELEGRAM_WEBHOOK_SECRET and x_telegram_bot_api_secret_token != settings.TELEGRAM_WEBHOOK_SECRET:
+    secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
+    expected = settings.TELEGRAM_WEBHOOK_SECRET or ""
+    if not hmac.compare_digest(secret, expected):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
 
     try:
