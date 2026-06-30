@@ -7,6 +7,7 @@ from sqlalchemy.orm import sessionmaker
 
 TEST_DATABASE_URL = "postgresql://user:password@localhost:5432/airmed_test"
 os.environ["DATABASE_URL"] = TEST_DATABASE_URL
+os.environ.setdefault("TELEGRAM_BOT_TOKEN", "test-token")
 
 from app.core.config import settings
 from app.db.base import Base
