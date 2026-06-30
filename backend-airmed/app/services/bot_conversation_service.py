@@ -1,13 +1,15 @@
 import json
 import logging
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timezone
 
 from fastapi import BackgroundTasks, HTTPException
 
 from app.core.config import settings
 from app.db.session import SessionLocal
+from app.models.user import User
 from app.schemas.appointment import AppointmentCreate, AppointmentUpdate
 from app.schemas.bot import BotReply, Button, SessionState
+from app.schemas.llm import IntentResult
 from app.services.appointment_service import create_appointment, get_appointment, get_appointments, update_appointment
 from app.services.availability_service import get_available_slots
 from app.services.llm_service import interpret_message
@@ -85,7 +87,7 @@ def _default_professional_id() -> int:
         db.close()
 
 
-def handle_cancel(chat_id: int, user, entities: dict) -> BotReply:
+def handle_cancel(chat_id: int, user: User, entities: dict) -> BotReply:
     appointment_id = entities.get("appointment_id")
     db = SessionLocal()
     try:
@@ -114,7 +116,7 @@ def handle_cancel(chat_id: int, user, entities: dict) -> BotReply:
         db.close()
 
 
-def handle_query(user) -> BotReply:
+def handle_query(user: User) -> BotReply:
     db = SessionLocal()
     try:
         appointments = get_appointments(db, current_user=user)
@@ -128,7 +130,7 @@ def handle_query(user) -> BotReply:
         db.close()
 
 
-def handle_schedule(chat_id: int, user, entities: dict) -> BotReply:
+def handle_schedule(chat_id: int, user: User, entities: dict) -> BotReply:
     date_str = entities.get("date")
     if not date_str:
         return BotReply(text="¿Para qué fecha te gustaría agendar? Ejemplo: mañana o 2026-07-15.")
@@ -145,6 +147,16 @@ def handle_schedule(chat_id: int, user, entities: dict) -> BotReply:
         raise
     finally:
         db.close()
+
+    now = datetime.now(timezone.utc)
+
+    def _is_future_slot(slot: dict) -> bool:
+        start_time = datetime.fromisoformat(slot["start_time"])
+        if start_time.tzinfo is None:
+            start_time = start_time.replace(tzinfo=timezone.utc)
+        return start_time > now
+
+    slots = [slot for slot in slots if _is_future_slot(slot)]
 
     if not slots:
         return BotReply(text=f"No tengo disponibilidad para el {date_str}. ¿Quieres intentar otra fecha?")
@@ -164,7 +176,7 @@ def handle_schedule(chat_id: int, user, entities: dict) -> BotReply:
     )
 
 
-def handle_reschedule(chat_id: int, user, entities: dict) -> BotReply:
+def handle_reschedule(chat_id: int, user: User, entities: dict) -> BotReply:
     appointment_id = entities.get("appointment_id")
     db = SessionLocal()
     try:
@@ -211,7 +223,7 @@ def handle_reschedule(chat_id: int, user, entities: dict) -> BotReply:
         db.close()
 
 
-def handle_reschedule_slot(chat_id: int, user, session: dict, slot_index: int, background_tasks=None) -> BotReply:
+def handle_reschedule_slot(chat_id: int, user: User, session: dict, slot_index: int, background_tasks=None) -> BotReply:
     slots = session.get("proposed_slots", [])
     if slot_index < 0 or slot_index >= len(slots):
         return BotReply(text="Opción no válida. Intenta de nuevo.")
@@ -248,7 +260,7 @@ def handle_reschedule_slot(chat_id: int, user, session: dict, slot_index: int, b
         db.close()
 
 
-def handle_confirm_slot(chat_id: int, user, session: dict, slot_index: int, background_tasks=None) -> BotReply:
+def handle_confirm_slot(chat_id: int, user: User, session: dict, slot_index: int, background_tasks=None) -> BotReply:
     slots = session.get("proposed_slots", [])
     if slot_index < 0 or slot_index >= len(slots):
         return BotReply(text="Opción no válida. Intenta de nuevo.")
@@ -287,25 +299,26 @@ def handle_confirm_slot(chat_id: int, user, session: dict, slot_index: int, back
         db.close()
 
 
-def _intent_value(intent_result) -> str:
-    if isinstance(intent_result, dict):
-        intent = intent_result.get("intent")
-        return intent.value if hasattr(intent, "value") else str(intent)
+def _intent_value(intent_result: IntentResult) -> str:
     return intent_result.intent.value
 
 
-def _intent_entities(intent_result) -> dict:
-    if isinstance(intent_result, dict):
-        entities = intent_result.get("entities", {})
-        return entities.model_dump(exclude_none=True) if hasattr(entities, "model_dump") else dict(entities)
+def _intent_entities(intent_result: IntentResult) -> dict:
     return intent_result.entities.model_dump(exclude_none=True)
+
+
+def _handle_text_in_pending_session(chat_id: int, text: str, session: dict) -> BotReply:
+    if text.lower() in {"cancelar", "no", "salir"}:
+        clear_session(chat_id)
+        return BotReply(text="Acción cancelada. ¿En qué puedo ayudarte?")
+    return BotReply(text="Tienes una acción pendiente. Usa los botones o escribe 'cancelar' para salir.")
 
 
 def process_message(
     chat_id: int,
     text: str | None,
     callback_data: str | None,
-    user,
+    user: User,
     background_tasks=None,
 ) -> BotReply:
     session = get_session(chat_id)
@@ -313,42 +326,61 @@ def process_message(
     if callback_data:
         if session is None:
             return BotReply(text="Tu sesión ha expirado. Envíame un nuevo mensaje.")
+        state = session.get("state")
         if callback_data.startswith("confirm_slot:"):
+            if state != SessionState.awaiting_confirmation.value:
+                clear_session(chat_id)
+                return BotReply(text="Opción no válida. Intenta de nuevo.")
             try:
                 index = int(callback_data.split(":", 1)[1])
             except ValueError:
                 return BotReply(text="Opción no válida.")
             return handle_confirm_slot(chat_id, user, session, index, background_tasks=background_tasks)
         if callback_data.startswith("reschedule_slot:"):
+            if state != SessionState.reschedule_confirming.value:
+                clear_session(chat_id)
+                return BotReply(text="Opción no válida. Intenta de nuevo.")
             try:
                 index = int(callback_data.split(":", 1)[1])
             except ValueError:
                 return BotReply(text="Opción no válida.")
             return handle_reschedule_slot(chat_id, user, session, index, background_tasks=background_tasks)
-        if callback_data == "cancel_yes":
-            appointment_id = session.get("appointment_id")
-            db = SessionLocal()
-            try:
-                appointment = get_appointment(db, appointment_id)
-                if appointment:
-                    update_appointment(
-                        db,
-                        appointment,
-                        AppointmentUpdate(status="cancelled"),
-                        current_user=user,
-                        background_tasks=background_tasks,
-                    )
+        if callback_data in {"cancel_yes", "cancel_no"}:
+            if state != SessionState.cancel_confirming.value:
                 clear_session(chat_id)
-                return BotReply(text="Tu cita ha sido cancelada.")
-            finally:
-                db.close()
-        if callback_data == "cancel_no":
+                return BotReply(text="Opción no válida. Intenta de nuevo.")
+            if callback_data == "cancel_yes":
+                appointment_id = session.get("appointment_id")
+                db = SessionLocal()
+                try:
+                    appointment = get_appointment(db, appointment_id)
+                    if appointment:
+                        update_appointment(
+                            db,
+                            appointment,
+                            AppointmentUpdate(status="cancelled"),
+                            current_user=user,
+                            background_tasks=background_tasks,
+                        )
+                    clear_session(chat_id)
+                    return BotReply(text="Tu cita ha sido cancelada.")
+                finally:
+                    db.close()
             clear_session(chat_id)
             return BotReply(text="Cancelación descartada.")
         return BotReply(text="Opción no válida. Intenta de nuevo.")
 
     if text is None:
         return BotReply(text="No entendí tu mensaje. Intenta de nuevo.")
+
+    if session is not None:
+        state = session.get("state")
+        if state in {
+            SessionState.awaiting_confirmation.value,
+            SessionState.reschedule_confirming.value,
+            SessionState.cancel_confirming.value,
+        }:
+            return _handle_text_in_pending_session(chat_id, text, session)
 
     intent_result = interpret_message(text)
     if intent_result is None:
