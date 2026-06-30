@@ -47,3 +47,19 @@ def test_set_webhook():
         mock_get.return_value.raise_for_status = lambda: None
         result = set_webhook("https://example.com/webhook")
     assert result is True
+
+
+def test_telegram_webhook_endpoint(client):
+    payload = {
+        "message": {
+            "chat": {"id": 12345},
+            "text": "Hola",
+        }
+    }
+    with (
+        patch("app.api.v1.endpoints.bots.resolve_user", return_value=None),
+        patch("app.api.v1.endpoints.bots.send_message") as mock_send,
+    ):
+        resp = client.post("/api/v1/bots/telegram/webhook", json=payload)
+    assert resp.status_code == 200
+    mock_send.assert_called_once()
