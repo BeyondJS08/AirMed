@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     LLM_TIMEOUT: float = 30.0
     LLM_ENABLED: bool = False
     LLM_TEMPERATURE: float = 0.1
+    TELEGRAM_BOT_TOKEN: str | None = None
+    BOT_SESSION_TTL: int = 1800
 
     model_config = SettingsConfigDict(env_file=".env")
 
