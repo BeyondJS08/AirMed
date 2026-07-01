@@ -166,6 +166,13 @@ def update_appointment(
         _validate_transition(current_user, appointment, data.status)
     if data.notes is not None:
         appointment.notes = data.notes
+    times_changed = data.start_time is not None or data.end_time is not None
+    if times_changed:
+        start_time = data.start_time if data.start_time is not None else appointment.start_time
+        end_time = data.end_time if data.end_time is not None else appointment.end_time
+        _validate_slot_available(db, appointment.professional_id, start_time, end_time, exclude_id=appointment.id)
+        appointment.start_time = start_time
+        appointment.end_time = end_time
     if data.status is not None:
         appointment.status = data.status
     db.commit()
@@ -178,4 +185,7 @@ def update_appointment(
         elif data.status in ("scheduled", "confirmed"):
             operation = "create" if not appointment.google_event_id else "update"
             _schedule_sync(background_tasks, operation, appointment)
+    elif times_changed:
+        operation = "create" if not appointment.google_event_id else "update"
+        _schedule_sync(background_tasks, operation, appointment)
     return appointment

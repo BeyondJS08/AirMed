@@ -1,7 +1,13 @@
+import os
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+
+TEST_DATABASE_URL = "postgresql://user:password@localhost:5432/airmed_test"
+os.environ["DATABASE_URL"] = TEST_DATABASE_URL
+os.environ.setdefault("TELEGRAM_BOT_TOKEN", "test-token")
 
 from app.core.config import settings
 from app.db.base import Base
@@ -9,8 +15,6 @@ from app.db.session import get_db
 from app.main import app
 from app.models.user import User
 from app.core.security import get_password_hash
-
-TEST_DATABASE_URL = "postgresql://user:password@localhost:5432/airmed_test"
 
 engine = create_engine(TEST_DATABASE_URL)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
